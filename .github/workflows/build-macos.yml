@@ -1,0 +1,39 @@
+name: Build macOS (Apple Silicon)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-macos-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  macos-silicon:
+    name: macOS Apple Silicon (aarch64)
+    runs-on: macos-15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build and package macOS Apple Silicon DMG
+        run: ./packaging/macos/package.sh --arch aarch64
+
+      - name: Upload NephClip macOS DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: nephclip-macos-silicon-dmg
+          path: dist/release/nephclip-*-macos-aarch64.dmg
+          if-no-files-found: error
