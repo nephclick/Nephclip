@@ -19,7 +19,7 @@
 //! working spaces, as in [`crate::transform`].
 
 use crate::spaces::{Gamut, WorkingSpace};
-use crate::{REFERENCE_WHITE_NITS, hlg_inverse_oetf, hlg_oetf, linear_to_srgb, pq_eotf, pq_inverse_eotf, srgb_to_linear};
+use crate::{REFERENCE_WHITE_NITS, fast_linear_to_srgb, fast_srgb_to_linear, hlg_inverse_oetf, hlg_oetf, pq_eotf, pq_inverse_eotf};
 
 /// Default HDR White / curve HDR Range (cd/m²): the nominal HLG display peak and the usual PQ
 /// mastering peak.
@@ -63,7 +63,7 @@ impl GradeSpace {
     #[inline]
     pub fn encode(&self, c: [f32; 3]) -> [f32; 3] {
         match *self {
-            GradeSpace::Sdr => c.map(|v| linear_to_srgb(v.max(0.0))),
+            GradeSpace::Sdr => c.map(|v| fast_linear_to_srgb(v.max(0.0))),
             GradeSpace::Pq { norm, .. } => c.map(|v| pq_inverse_eotf((v.max(0.0) * REFERENCE_WHITE_NITS as f32 / 10_000.0).min(1.0)) / norm),
             GradeSpace::Hlg { white, gamma } => {
                 // display light normalised to the peak, inverse OOTF (scene light), OETF
@@ -84,7 +84,7 @@ impl GradeSpace {
     #[inline]
     pub fn decode(&self, v: [f32; 3]) -> [f32; 3] {
         match *self {
-            GradeSpace::Sdr => v.map(|q| srgb_to_linear(q.clamp(0.0, 1.0))),
+            GradeSpace::Sdr => v.map(|q| fast_srgb_to_linear(q.clamp(0.0, 1.0))),
             GradeSpace::Pq { norm, .. } => v.map(|q| pq_eotf((q * norm).clamp(0.0, 1.0)) * 10_000.0 / REFERENCE_WHITE_NITS as f32),
             GradeSpace::Hlg { white, gamma } => {
                 // graded highlights may go past signal 1.0 (the display peak); keep them up to
@@ -131,7 +131,7 @@ mod tests {
         let g = GradeSpace::new(WorkingSpace::Rec709, 1000.0);
         assert!(!g.is_hdr());
         let e = g.encode([0.18, 0.5, 1.0]);
-        assert!((e[0] - linear_to_srgb(0.18)).abs() < 1e-6 && (e[2] - 1.0).abs() < 1e-6);
+        assert!((e[0] - crate::linear_to_srgb(0.18)).abs() < 1e-6 && (e[2] - 1.0).abs() < 1e-6);
         // values above white clip on the way back (SDR)
         assert_eq!(g.decode([1.4, 1.4, 1.4]), [1.0; 3]);
     }

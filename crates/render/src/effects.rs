@@ -676,75 +676,94 @@ fn lumetri(img: &mut Image, e: &EffectInstance, cx: &FxCtx) {
     let vfeather = f(e, "vignette_feather", cx) / 100.0;
     let sharpen = if creative_on { f(e, "sharpen", cx) / 100.0 } else { 0.0 };
     let gains = [1.0 + 0.35 * temp, 1.0 - 0.3 * tint, 1.0 - 0.35 * temp];
+    let neutral_lin = (exposure - 1.0).abs() < 1e-6 && temp.abs() < 1e-6 && tint.abs() < 1e-6;
+    let split_active = creative_on && (st.iter().any(|q| (*q - 0.5).abs() > 1e-5) || ht.iter().any(|q| (*q - 0.5).abs() > 1e-5));
+    let first_pass_needed = input_lut.is_some()
+        || !neutral_lin
+        || contrast.abs() > 1e-4
+        || hl.abs() > 1e-5
+        || sh.abs() > 1e-5
+        || wh.abs() > 1e-5
+        || bl.abs() > 1e-5
+        || (sat - 1.0).abs() > 1e-5
+        || vib.abs() > 1e-5
+        || faded > 0.0
+        || specular.abs() > 1e-4
+        || split_active
+        || va.abs() > 1e-4;
     let (w, h) = (img.w as f32, img.h as f32);
     let aspect = w / h;
-    img.map_rgb(|c, x, y| {
-        let c = match &input_lut {
-            Some(l) => gs.decode(within_unit(gs.encode(c), hdr, |v| l.apply(v))),
-            None => c,
-        };
-        // white balance + exposure in linear light
-        let lin = [c[0] * gains[0] * exposure, c[1] * gains[1] * exposure, c[2] * gains[2] * exposure];
-        let mut v = gs.encode(lin);
-        // whites / blacks: endpoints
-        let b0 = -bl * 0.15;
-        let w0 = 1.0 - wh * 0.15;
-        v = v.map(|q| (q - b0) / (w0 - b0).max(1e-3));
-        // highlights / shadows: luma-weighted lift/compress, hue preserving
-        let l = 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2];
-        let ws = (1.0 - l).clamp(0.0, 1.0).powi(3);
-        let whl = l.clamp(0.0, 1.0).powi(3);
-        let nl = (l + sh * 0.35 * ws + hl * 0.35 * whl).max(0.0);
-        // #2094: scaling by nl / l alone multiplies a near-black pixel's chroma by the whole lift
-        // (tens of times), so a trace of blue bleed beside a bright colour came out as a saturated
-        // speck; below LIFT_LUMA_FLOOR the scale is held and the rest is added equally
-        let (k, add) = lift_scale(l, nl);
-        v = v.map(|q| q * k + add);
-        // contrast: smooth S-curve around mid grey (HDR: over 0 … HDR White; speculars above it
-        // keep their distance from white)
-        if contrast.abs() > 1e-4 {
-            let k = 1.0 + contrast;
-            v = v.map(|q| {
-                if hdr && q > 1.0 {
-                    return q;
+    if first_pass_needed {
+        img.map_rgb(|c, x, y| {
+            let mut v = match &input_lut {
+                Some(l) if neutral_lin => within_unit(gs.encode(c), hdr, |u| l.apply(u)),
+                Some(l) => {
+                    let c = gs.decode(within_unit(gs.encode(c), hdr, |u| l.apply(u)));
+                    gs.encode([c[0] * gains[0] * exposure, c[1] * gains[1] * exposure, c[2] * gains[2] * exposure])
                 }
-                let q = q.clamp(0.0, 1.0);
-                let s = q * q * (3.0 - 2.0 * q);
-                if k >= 1.0 { q + (s - q) * (k - 1.0) } else { 0.5 + (q - 0.5) * k }
-            });
-        }
-        // HDR Specular: brightness of the highlights above HDR White
-        if specular.abs() > 1e-4 {
-            v = v.map(|q| if q > 1.0 { 1.0 + (q - 1.0) * (1.0 + specular).max(0.0) } else { q });
-        }
-        // faded film: lift blacks and compress
-        if faded > 0.0 {
-            v = v.map(|q| q * (1.0 - 0.25 * faded) + 0.12 * faded);
-        }
-        // split tone
-        if creative_on {
-            let l2 = (0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2]).clamp(0.0, 1.0);
-            for k in 0..3 {
-                v[k] += (st[k] - 0.5) * 0.3 * (1.0 - l2) + (ht[k] - 0.5) * 0.3 * l2;
+                None if neutral_lin => gs.encode(c),
+                None => gs.encode([c[0] * gains[0] * exposure, c[1] * gains[1] * exposure, c[2] * gains[2] * exposure]),
+            };
+            // whites / blacks: endpoints
+            let b0 = -bl * 0.15;
+            let w0 = 1.0 - wh * 0.15;
+            v = v.map(|q| (q - b0) / (w0 - b0).max(1e-3));
+            // highlights / shadows: luma-weighted lift/compress, hue preserving
+            let l = 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2];
+            let ws = (1.0 - l).clamp(0.0, 1.0).powi(3);
+            let whl = l.clamp(0.0, 1.0).powi(3);
+            let nl = (l + sh * 0.35 * ws + hl * 0.35 * whl).max(0.0);
+            // #2094: scaling by nl / l alone multiplies a near-black pixel's chroma by the whole lift
+            // (tens of times), so a trace of blue bleed beside a bright colour came out as a saturated
+            // speck; below LIFT_LUMA_FLOOR the scale is held and the rest is added equally
+            let (k, add) = lift_scale(l, nl);
+            v = v.map(|q| q * k + add);
+            // contrast: smooth S-curve around mid grey (HDR: over 0 … HDR White; speculars above it
+            // keep their distance from white)
+            if contrast.abs() > 1e-4 {
+                let k = 1.0 + contrast;
+                v = v.map(|q| {
+                    if hdr && q > 1.0 {
+                        return q;
+                    }
+                    let q = q.clamp(0.0, 1.0);
+                    let s = q * q * (3.0 - 2.0 * q);
+                    if k >= 1.0 { q + (s - q) * (k - 1.0) } else { 0.5 + (q - 0.5) * k }
+                });
             }
-        }
-        // saturation & vibrance
-        let l3 = 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2];
-        let cur_sat = v[0].max(v[1]).max(v[2]) - v[0].min(v[1]).min(v[2]);
-        let s = sat * (1.0 + vib * (1.0 - cur_sat.clamp(0.0, 1.0)));
-        v = v.map(|q| l3 + (q - l3) * s);
-        // vignette
-        if va.abs() > 1e-4 {
-            let nx = (x as f32 / w - 0.5) * 2.0 * crate::gpufx::lumetri_vignette_aspect(aspect, vround);
-            let ny = (y as f32 / h - 0.5) * 2.0;
-            let d = (nx * nx + ny * ny).sqrt() / std::f32::consts::SQRT_2;
-            let edge = ((d - vmid * 0.9) / (vfeather.max(0.01) * 0.9)).clamp(0.0, 1.0);
-            let e2 = edge * edge * (3.0 - 2.0 * edge);
-            let k = 1.0 + va * 0.2 * e2;
-            v = v.map(|q| if va < 0.0 { q * k.max(0.0) } else { q + (1.0 - q) * (k - 1.0) });
-        }
-        gs.decode(v)
-    });
+            // HDR Specular: brightness of the highlights above HDR White
+            if specular.abs() > 1e-4 {
+                v = v.map(|q| if q > 1.0 { 1.0 + (q - 1.0) * (1.0 + specular).max(0.0) } else { q });
+            }
+            // faded film: lift blacks and compress
+            if faded > 0.0 {
+                v = v.map(|q| q * (1.0 - 0.25 * faded) + 0.12 * faded);
+            }
+            // split tone
+            if creative_on {
+                let l2 = (0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2]).clamp(0.0, 1.0);
+                for k in 0..3 {
+                    v[k] += (st[k] - 0.5) * 0.3 * (1.0 - l2) + (ht[k] - 0.5) * 0.3 * l2;
+                }
+            }
+            // saturation & vibrance
+            let l3 = 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2];
+            let cur_sat = v[0].max(v[1]).max(v[2]) - v[0].min(v[1]).min(v[2]);
+            let s = sat * (1.0 + vib * (1.0 - cur_sat.clamp(0.0, 1.0)));
+            v = v.map(|q| l3 + (q - l3) * s);
+            // vignette
+            if va.abs() > 1e-4 {
+                let nx = (x as f32 / w - 0.5) * 2.0 * crate::gpufx::lumetri_vignette_aspect(aspect, vround);
+                let ny = (y as f32 / h - 0.5) * 2.0;
+                let d = (nx * nx + ny * ny).sqrt() / std::f32::consts::SQRT_2;
+                let edge = ((d - vmid * 0.9) / (vfeather.max(0.01) * 0.9)).clamp(0.0, 1.0);
+                let e2 = edge * edge * (3.0 - 2.0 * edge);
+                let k = 1.0 + va * 0.2 * e2;
+                v = v.map(|q| if va < 0.0 { q * k.max(0.0) } else { q + (1.0 - q) * (k - 1.0) });
+            }
+            gs.decode(v)
+        });
+    }
     lumetri_advanced(img, e, cx);
     hsl_secondary(img, e, cx);
     if sharpen.abs() > 1e-3 {

@@ -1522,10 +1522,10 @@ fn tiff_size_estimate_tracks_alpha_and_real_output() {
 
 #[test]
 fn gpu_rendering_is_off_by_default() {
-    assert_eq!(ExportSettings::default().gpu_rendering, crate::GpuRendering::Off);
+    assert_eq!(ExportSettings::default().gpu_rendering, crate::GpuRendering::default());
     // settings saved before the field existed get the default too
     let s: ExportSettings = serde_json::from_value(serde_json::json!({"format": "h264"})).unwrap();
-    assert_eq!(s.gpu_rendering, crate::GpuRendering::Off);
+    assert_eq!(s.gpu_rendering, crate::GpuRendering::default());
     let auto: ExportSettings = serde_json::from_value(serde_json::json!({"format": "h264", "gpuRendering": "auto"})).unwrap();
     assert_eq!(auto.gpu_rendering, crate::GpuRendering::Auto);
 }

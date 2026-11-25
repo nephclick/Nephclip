@@ -102,35 +102,45 @@ impl Lut3d {
     }
 
     /// Tetrahedral interpolation.
+    #[inline]
     pub fn apply(&self, rgb: [f32; 3]) -> [f32; 3] {
         let n = self.size;
-        let (x, y, z) = (self.coord(rgb[0], 0), self.coord(rgb[1], 1), self.coord(rgb[2], 2));
-        let (r0, g0, b0) = ((x as usize).min(n - 2), (y as usize).min(n - 2), (z as usize).min(n - 2));
+        let nn = n * n;
+        if n < 2 || self.data.len() < n * nn {
+            return rgb;
+        }
+        let max_i = n - 2;
+        let scale = (n - 1) as f32;
+        let x = ((rgb[0] - self.domain_min[0]) / (self.domain_max[0] - self.domain_min[0])).clamp(0.0, 1.0) * scale;
+        let y = ((rgb[1] - self.domain_min[1]) / (self.domain_max[1] - self.domain_min[1])).clamp(0.0, 1.0) * scale;
+        let z = ((rgb[2] - self.domain_min[2]) / (self.domain_max[2] - self.domain_min[2])).clamp(0.0, 1.0) * scale;
+        let (r0, g0, b0) = ((x as usize).min(max_i), (y as usize).min(max_i), (z as usize).min(max_i));
         let (fr, fg, fb) = (x - r0 as f32, y - g0 as f32, z - b0 as f32);
-        let c = |dr: usize, dg: usize, db: usize| self.at(r0 + dr, g0 + dg, b0 + db);
-        let c000 = c(0, 0, 0);
-        let c111 = c(1, 1, 1);
+        let base = r0 + g0 * n + b0 * nn;
+        let d = self.data.as_slice();
+        let c000 = d[base];
+        let c111 = d[base + 1 + n + nn];
         // weights (w0 on c000, then the two intermediate corners, w3 on c111)
         let (ca, cb, w) = if fr > fg {
             if fg > fb {
-                (c(1, 0, 0), c(1, 1, 0), [1.0 - fr, fr - fg, fg - fb, fb])
+                (d[base + 1], d[base + 1 + n], [1.0 - fr, fr - fg, fg - fb, fb])
             } else if fr > fb {
-                (c(1, 0, 0), c(1, 0, 1), [1.0 - fr, fr - fb, fb - fg, fg])
+                (d[base + 1], d[base + 1 + nn], [1.0 - fr, fr - fb, fb - fg, fg])
             } else {
-                (c(0, 0, 1), c(1, 0, 1), [1.0 - fb, fb - fr, fr - fg, fg])
+                (d[base + nn], d[base + 1 + nn], [1.0 - fb, fb - fr, fr - fg, fg])
             }
         } else if fb > fg {
-            (c(0, 0, 1), c(0, 1, 1), [1.0 - fb, fb - fg, fg - fr, fr])
+            (d[base + nn], d[base + n + nn], [1.0 - fb, fb - fg, fg - fr, fr])
         } else if fb > fr {
-            (c(0, 1, 0), c(0, 1, 1), [1.0 - fg, fg - fb, fb - fr, fr])
+            (d[base + n], d[base + n + nn], [1.0 - fg, fg - fb, fb - fr, fr])
         } else {
-            (c(0, 1, 0), c(1, 1, 0), [1.0 - fg, fg - fr, fr - fb, fb])
+            (d[base + n], d[base + 1 + n], [1.0 - fg, fg - fr, fr - fb, fb])
         };
-        let mut o = [0.0; 3];
-        for k in 0..3 {
-            o[k] = w[0] * c000[k] + w[1] * ca[k] + w[2] * cb[k] + w[3] * c111[k];
-        }
-        o
+        [
+            w[0] * c000[0] + w[1] * ca[0] + w[2] * cb[0] + w[3] * c111[0],
+            w[0] * c000[1] + w[1] * ca[1] + w[2] * cb[1] + w[3] * c111[1],
+            w[0] * c000[2] + w[1] * ca[2] + w[2] * cb[2] + w[3] * c111[2],
+        ]
     }
 
     /// Trilinear interpolation (kept for comparison; LUTs render tetrahedrally).
