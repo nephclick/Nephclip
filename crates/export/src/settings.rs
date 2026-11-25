@@ -75,14 +75,26 @@ impl H264Profile {
 /// (VideoToolbox on macOS, NVENC on NVIDIA GPUs on Windows) instead of FilmCraft's own encoder. Off
 /// by default: hardware encoders make different streams, and exports are otherwise byte-identical
 /// from run to run and machine to machine.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum HardwareEncoding {
-    #[default]
     Off,
     /// Use the hardware encoder when the system has one and it takes the settings; otherwise the
     /// software encoder.
     Auto,
+}
+
+impl Default for HardwareEncoding {
+    fn default() -> Self {
+        #[cfg(target_os = "macos")]
+        {
+            Self::Auto
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            Self::Off
+        }
+    }
 }
 
 /// Whether the picture of an export may be composited on the GPU (`filmcraft-gpu`'s off-screen
@@ -91,14 +103,25 @@ pub enum HardwareEncoding {
 /// way. On an effects-heavy edit it exports 2.4× (1080p) to 3.2× (4K) faster, and a single plain
 /// clip takes the same time (`docs/performance.md`). The GPU matches the CPU within the
 /// compositor's parity tolerance, not bit for bit, so an export's bytes can depend on the
-/// machine's GPU. Off = the CPU reference renderer, byte-reproducible everywhere; Off is the
-/// default (opt-in per export) until GPU export has been measured on Windows and macOS.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+/// machine's GPU. Off = the CPU reference renderer, byte-reproducible everywhere.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum GpuRendering {
     Auto,
-    #[default]
     Off,
+}
+
+impl Default for GpuRendering {
+    fn default() -> Self {
+        #[cfg(target_os = "macos")]
+        {
+            Self::Auto
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            Self::Off
+        }
+    }
 }
 
 /// Bitrate encoding of bitrate-driven codecs (H.264).

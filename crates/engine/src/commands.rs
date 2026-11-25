@@ -3484,16 +3484,56 @@ fn build() -> Vec<CommandSpec> {
                         if group.is_empty() {
                             return Err(edit::EditError::Locked.into());
                         }
-                        dd = edit::ripple_trim_group(q, &group, edge, dd, ctx)?;
-                        if st.ripple_sequence_markers
-                            && let Some(r) = before
-                        {
+                        dd = match edit::ripple_trim_group(q, &group, edge, dd, ctx) {
+                            Ok(applied_dd) => applied_dd,
+                            Err(edit::EditError::SyncLockConflict(_)) if st.magnetic_timeline => {
+                                // Magnetic Timeline fallback: ripple the clip's own track(s) even when an unrelated track is sync-locked
+                                let saved: Vec<(TrackId, bool)> = q.all_tracks().map(|tr| (tr.id, tr.sync_lock)).collect();
+                                let group_tracks: Vec<TrackId> = group.iter().filter_map(|id| q.find_item(*id).map(|(t, _)| t)).collect();
+                                for tr in q.all_tracks_mut() {
+                                    if !group_tracks.contains(&tr.id) {
+                                        tr.sync_lock = false;
+                                    }
+                                }
+                                let res = edit::ripple_trim_group(q, &group, edge, dd, ctx);
+                                for (tid, lock) in saved {
+                                    if let Some(tr) = q.track_mut(tid) {
+                                        tr.sync_lock = lock;
+                                    }
+                                }
+                                res?
+                            }
+                            Err(e) => return Err(e.into()),
+                        };
+                        if let Some(r) = before {
                             let (from, shift) = match edge {
                                 Edge::In if dd > Tick::ZERO => (r.start + dd, -dd),
                                 Edge::In => (r.start, -dd),
                                 Edge::Out => (r.end(), dd),
                             };
-                            crate::sequence_tools::ripple_markers(&mut q.markers, from, shift);
+                            if st.ripple_sequence_markers {
+                                crate::sequence_tools::ripple_markers(&mut q.markers, from, shift);
+                            }
+                            // Slide playhead along with the magnetic ripple trim
+                            if let Some(seq_id) = st.active_sequence {
+                                let ph = st.playheads.get(&seq_id).copied().unwrap_or_default();
+                                let new_ph = if shift < Tick::ZERO {
+                                    let cut_end = from;
+                                    let cut_start = (from + shift).max(Tick::ZERO);
+                                    if ph >= cut_start && ph <= cut_end {
+                                        cut_start
+                                    } else if ph > cut_end {
+                                        (ph + shift).max(Tick::ZERO)
+                                    } else {
+                                        ph
+                                    }
+                                } else if ph >= from {
+                                    (ph + shift).max(Tick::ZERO)
+                                } else {
+                                    ph
+                                };
+                                st.playheads.insert(seq_id, q.settings.frame_rate.snap(new_ph));
+                            }
                         }
                     } else {
                         for c in &clips {

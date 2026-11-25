@@ -500,12 +500,26 @@ fn start_drag(
             None
         }
         (_, Grab::Edge { clip, edge, kind, .. }) => Some(match kind {
-            EdgeKind::Trim => Drag::Trim { clip, edge, mode: filmcraft_edit::TrimMode::Regular, delta: Tick::ZERO, from: t, linked: !mods.alt },
+            EdgeKind::Trim => Drag::Trim {
+                clip,
+                edge,
+                mode: if app.session.state.magnetic_timeline && !mods.alt { filmcraft_edit::TrimMode::Ripple } else { filmcraft_edit::TrimMode::Regular },
+                delta: Tick::ZERO,
+                from: t,
+                linked: !mods.alt,
+            },
             EdgeKind::Ripple => Drag::Trim { clip, edge, mode: filmcraft_edit::TrimMode::Ripple, delta: Tick::ZERO, from: t, linked: !mods.alt },
             EdgeKind::Roll { left, right } => Drag::Roll { left, right, delta: Tick::ZERO, from: t },
             EdgeKind::Stretch => Drag::Stretch { clip, edge, delta: Tick::ZERO, from: t, linked: !mods.alt },
             EdgeKind::Remix => Drag::Remix { clip, delta: Tick::ZERO, from: t },
         }),
+        (Tool::Ripple, Grab::Other(Hit::Clip { clip, .. })) => {
+            let edge = seq
+                .find_item(clip)
+                .map(|(_, it)| if t < it.start + Tick(it.duration.0 / 2) { filmcraft_edit::Edge::In } else { filmcraft_edit::Edge::Out })
+                .unwrap_or(filmcraft_edit::Edge::Out);
+            Some(Drag::Trim { clip, edge, mode: filmcraft_edit::TrimMode::Ripple, delta: Tick::ZERO, from: t, linked: !mods.alt })
+        }
         (_, Grab::Volume { clip, .. }) if resp.drag_started() => crate::panels::timeline_volume::start(seq, layout, clip, p).map(Drag::Volume),
         (_, Grab::Volume { clip, .. }) => {
             crate::panels::timeline_volume::add_keyframe(app, seq, layout, clip, p.x);
