@@ -147,10 +147,7 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
         match mb::list(&*app.session.services, &st.folder, "all") {
             Ok(list) => {
                 // Keep media files first (videos, images, audio), then folders
-                let filtered: Vec<Entry> = list
-                    .into_iter()
-                    .filter(|e| e.is_dir || matches!(e.kind, "video" | "image" | "audio"))
-                    .collect();
+                let filtered: Vec<Entry> = list.into_iter().filter(|e| e.is_dir || matches!(e.kind, "video" | "image" | "audio")).collect();
                 st.entries = Arc::new(filtered);
             }
             Err(_) => {
@@ -191,7 +188,17 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
                     let card_r = Rect::from_min_max(tr.min - vec2(4.0, 4.0), pos2(tr.max.x + 4.0, tr.max.y + 26.0));
                     let resp = ui.interact(card_r, egui::Id::unique(("imp-file", &e.path)), Sense::click());
                     let is_sel = st.selected.contains(&e.path);
-                    ui.painter().rect_filled(card_r, 6.0, if is_sel { t.row_selected } else if resp.hovered() { t.hover } else { t.tl_header_bg });
+                    ui.painter().rect_filled(
+                        card_r,
+                        6.0,
+                        if is_sel {
+                            t.row_selected
+                        } else if resp.hovered() {
+                            t.hover
+                        } else {
+                            t.tl_header_bg
+                        },
+                    );
                     if is_sel {
                         ui.painter().rect_stroke(card_r, 6.0, Stroke::new(1.5, t.accent), StrokeKind::Inside);
                     }

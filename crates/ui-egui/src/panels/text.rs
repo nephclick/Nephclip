@@ -694,11 +694,8 @@ fn style_strip(app: &mut FilmcraftApp, ui: &mut egui::Ui, r: Rect, track_idx: us
     let mut child = ui.new_child(egui::UiBuilder::new().max_rect(r).id_salt("caption-style"));
     child.horizontal_wrapped(|ui| {
         ui.spacing_mut().item_spacing = egui::vec2(6.0, 4.0);
-        let r_preset = craft_ui::ComboBox::from_id_salt(("caption-preset", tr.id.0))
-            .selected_text(tl!("🎨 CapCut Styles"))
-            .width(130.0)
-            .height(300.0)
-            .show_ui(ui, |ui| {
+        let r_preset =
+            craft_ui::ComboBox::from_id_salt(("caption-preset", tr.id.0)).selected_text(tl!("🎨 CapCut Styles")).width(130.0).height(300.0).show_ui(ui, |ui| {
                 for p in filmcraft_project::CaptionPreset::ALL {
                     let desc = format!("{} — {}", p.label(), p.description());
                     if ui.selectable_label(false, p.label()).on_hover_text(desc).clicked() {

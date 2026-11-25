@@ -31,13 +31,8 @@ fn maybe_capture_active_thumb(app: &mut FilmcraftApp) {
     // Try active sequence's last rendered frame or first video clip thumbnail in frame cache
     let img = app.program_shown.and_then(|k| app.frames.get(&k)).or_else(|| {
         let seq_id = app.session.state.active_sequence?;
-        let key = crate::frames::FrameKey {
-            target: crate::frames::Target::Sequence(seq_id),
-            frame: 0,
-            size: 240,
-            revision: app.session.revision,
-            draft: false,
-        };
+        let key =
+            crate::frames::FrameKey { target: crate::frames::Target::Sequence(seq_id), frame: 0, size: 240, revision: app.session.revision, draft: false };
         app.frames.get(&key)
     });
     let Some(img) = img else { return };
@@ -78,18 +73,16 @@ fn load_recent_thumb(ctx: &egui::Context, project_path: &str) -> Option<egui::Te
     if let Some(existing) = ctx.data(|d| d.get_temp::<RecentThumbCache>(cache_id)).and_then(|c| c.loaded.get(project_path).cloned()) {
         return existing.map(|h| h.id());
     }
-    let handle = thumb_cache_path(project_path)
-        .and_then(|p| std::fs::read(p).ok())
-        .and_then(|bytes| {
-            let w = u32::from_le_bytes(bytes.get(0..4)?.try_into().ok()?) as usize;
-            let h = u32::from_le_bytes(bytes.get(4..8)?.try_into().ok()?) as usize;
-            let rgba = bytes.get(8..)?;
-            if w == 0 || h == 0 || w > 1024 || h > 1024 || rgba.len() != w * h * 4 {
-                return None;
-            }
-            let color_img = egui::ColorImage::from_rgba_unmultiplied([w, h], rgba);
-            Some(ctx.load_texture(format!("home-recent-thumb-{project_path}"), color_img, egui::TextureOptions::LINEAR))
-        });
+    let handle = thumb_cache_path(project_path).and_then(|p| std::fs::read(p).ok()).and_then(|bytes| {
+        let w = u32::from_le_bytes(bytes.get(0..4)?.try_into().ok()?) as usize;
+        let h = u32::from_le_bytes(bytes.get(4..8)?.try_into().ok()?) as usize;
+        let rgba = bytes.get(8..)?;
+        if w == 0 || h == 0 || w > 1024 || h > 1024 || rgba.len() != w * h * 4 {
+            return None;
+        }
+        let color_img = egui::ColorImage::from_rgba_unmultiplied([w, h], rgba);
+        Some(ctx.load_texture(format!("home-recent-thumb-{project_path}"), color_img, egui::TextureOptions::LINEAR))
+    });
     let tid = handle.as_ref().map(|h| h.id());
     ctx.data_mut(|d| {
         let c = d.get_temp_mut_or_default::<RecentThumbCache>(cache_id);
@@ -237,7 +230,13 @@ fn recent(app: &mut FilmcraftApp, ui: &mut egui::Ui, x0: f32, y: f32, w: f32, bo
         ui.painter().text(pos2(x0, y + 18.0), Align2::LEFT_CENTER, tl!("No recent projects yet. Saved projects appear here."), Tokens::ui(12.5), t.text_dim);
         return;
     }
-    let cols = if w >= 660.0 { 3 } else if w >= 420.0 { 2 } else { 1 };
+    let cols = if w >= 660.0 {
+        3
+    } else if w >= 420.0 {
+        2
+    } else {
+        1
+    };
     let gap = 14.0;
     let cw = (w - gap * (cols as f32 - 1.0)) / cols as f32;
     let thumb_h = (cw * 9.0 / 16.0).clamp(80.0, 148.0);

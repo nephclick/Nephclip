@@ -130,15 +130,8 @@ pub enum CaptionPreset {
 }
 
 impl CaptionPreset {
-    pub const ALL: &'static [Self] = &[
-        Self::ViralYellow,
-        Self::ActiveLime,
-        Self::CyberNeon,
-        Self::MinimalPill,
-        Self::FlameRed,
-        Self::Cinema,
-        Self::ElectricCyan,
-    ];
+    pub const ALL: &'static [Self] =
+        &[Self::ViralYellow, Self::ActiveLime, Self::CyberNeon, Self::MinimalPill, Self::FlameRed, Self::Cinema, Self::ElectricCyan];
 
     pub fn id(&self) -> &'static str {
         match self {

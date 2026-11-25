@@ -257,7 +257,11 @@ fn text_controls(app: &FilmcraftApp, id: &str) -> Vec<(String, String, String)> 
 
 fn place_imported_video(app: &mut FilmcraftApp, video_path: &str, prompt: &str) -> Result<String, String> {
     let r = app.session.execute("file.import", json!({"paths": [video_path]})).map_err(|e| e.to_string())?;
-    let item_id = r.get("items").and_then(Value::as_array).and_then(|a| a.first()).and_then(Value::as_u64)
+    let item_id = r
+        .get("items")
+        .and_then(Value::as_array)
+        .and_then(|a| a.first())
+        .and_then(Value::as_u64)
         .or_else(|| r.get("imported").and_then(Value::as_array).and_then(|a| a.first()).and_then(Value::as_u64));
     if let Some(id) = item_id {
         if app.session.active_sequence().is_none() {
@@ -305,118 +309,183 @@ fn animate_clip(app: &mut FilmcraftApp, prompt: &str) -> Result<String, String> 
 
     let p_lower = prompt.to_lowercase();
     if p_lower.contains("zoom") || p_lower.contains("scale") {
-        app.session.execute("effects.setParam", json!({
-            "clip": clip_id.0,
-            "effect": "motion",
-            "param": "scale",
-            "value": 30.0,
-            "time": t0.0,
-            "keyframe": true
-        })).map_err(|e| e.to_string())?;
-        app.session.execute("effects.setParam", json!({
-            "clip": clip_id.0,
-            "effect": "motion",
-            "param": "scale",
-            "value": 100.0,
-            "time": t1.0,
-            "keyframe": true
-        })).map_err(|e| e.to_string())?;
-        app.session.execute("effects.setParam", json!({
-            "clip": clip_id.0,
-            "effect": "opacity",
-            "param": "opacity",
-            "value": 0.0,
-            "time": t0.0,
-            "keyframe": true
-        })).map_err(|e| e.to_string())?;
-        app.session.execute("effects.setParam", json!({
-            "clip": clip_id.0,
-            "effect": "opacity",
-            "param": "opacity",
-            "value": 100.0,
-            "time": t1.0,
-            "keyframe": true
-        })).map_err(|e| e.to_string())?;
+        app.session
+            .execute(
+                "effects.setParam",
+                json!({
+                    "clip": clip_id.0,
+                    "effect": "motion",
+                    "param": "scale",
+                    "value": 30.0,
+                    "time": t0.0,
+                    "keyframe": true
+                }),
+            )
+            .map_err(|e| e.to_string())?;
+        app.session
+            .execute(
+                "effects.setParam",
+                json!({
+                    "clip": clip_id.0,
+                    "effect": "motion",
+                    "param": "scale",
+                    "value": 100.0,
+                    "time": t1.0,
+                    "keyframe": true
+                }),
+            )
+            .map_err(|e| e.to_string())?;
+        app.session
+            .execute(
+                "effects.setParam",
+                json!({
+                    "clip": clip_id.0,
+                    "effect": "opacity",
+                    "param": "opacity",
+                    "value": 0.0,
+                    "time": t0.0,
+                    "keyframe": true
+                }),
+            )
+            .map_err(|e| e.to_string())?;
+        app.session
+            .execute(
+                "effects.setParam",
+                json!({
+                    "clip": clip_id.0,
+                    "effect": "opacity",
+                    "param": "opacity",
+                    "value": 100.0,
+                    "time": t1.0,
+                    "keyframe": true
+                }),
+            )
+            .map_err(|e| e.to_string())?;
         Ok(tl!("Animated zoom-in with smooth opacity ease-in.").into())
     } else if p_lower.contains("fade") {
-        app.session.execute("effects.setParam", json!({
-            "clip": clip_id.0,
-            "effect": "opacity",
-            "param": "opacity",
-            "value": 0.0,
-            "time": t0.0,
-            "keyframe": true
-        })).map_err(|e| e.to_string())?;
-        app.session.execute("effects.setParam", json!({
-            "clip": clip_id.0,
-            "effect": "opacity",
-            "param": "opacity",
-            "value": 100.0,
-            "time": t1.0,
-            "keyframe": true
-        })).map_err(|e| e.to_string())?;
+        app.session
+            .execute(
+                "effects.setParam",
+                json!({
+                    "clip": clip_id.0,
+                    "effect": "opacity",
+                    "param": "opacity",
+                    "value": 0.0,
+                    "time": t0.0,
+                    "keyframe": true
+                }),
+            )
+            .map_err(|e| e.to_string())?;
+        app.session
+            .execute(
+                "effects.setParam",
+                json!({
+                    "clip": clip_id.0,
+                    "effect": "opacity",
+                    "param": "opacity",
+                    "value": 100.0,
+                    "time": t1.0,
+                    "keyframe": true
+                }),
+            )
+            .map_err(|e| e.to_string())?;
         Ok(tl!("Animated smooth opacity fade-in.").into())
     } else if p_lower.contains("bounce") || p_lower.contains("pop") {
         let t_mid = t0 + anim_dur * 7 / 10;
-        app.session.execute("effects.setParam", json!({
-            "clip": clip_id.0,
-            "effect": "motion",
-            "param": "scale",
-            "value": 10.0,
-            "time": t0.0,
-            "keyframe": true
-        })).map_err(|e| e.to_string())?;
-        app.session.execute("effects.setParam", json!({
-            "clip": clip_id.0,
-            "effect": "motion",
-            "param": "scale",
-            "value": 115.0,
-            "time": t_mid.0,
-            "keyframe": true
-        })).map_err(|e| e.to_string())?;
-        app.session.execute("effects.setParam", json!({
-            "clip": clip_id.0,
-            "effect": "motion",
-            "param": "scale",
-            "value": 100.0,
-            "time": t1.0,
-            "keyframe": true
-        })).map_err(|e| e.to_string())?;
+        app.session
+            .execute(
+                "effects.setParam",
+                json!({
+                    "clip": clip_id.0,
+                    "effect": "motion",
+                    "param": "scale",
+                    "value": 10.0,
+                    "time": t0.0,
+                    "keyframe": true
+                }),
+            )
+            .map_err(|e| e.to_string())?;
+        app.session
+            .execute(
+                "effects.setParam",
+                json!({
+                    "clip": clip_id.0,
+                    "effect": "motion",
+                    "param": "scale",
+                    "value": 115.0,
+                    "time": t_mid.0,
+                    "keyframe": true
+                }),
+            )
+            .map_err(|e| e.to_string())?;
+        app.session
+            .execute(
+                "effects.setParam",
+                json!({
+                    "clip": clip_id.0,
+                    "effect": "motion",
+                    "param": "scale",
+                    "value": 100.0,
+                    "time": t1.0,
+                    "keyframe": true
+                }),
+            )
+            .map_err(|e| e.to_string())?;
         Ok(tl!("Animated pop-and-bounce scale entrance.").into())
     } else {
         let offset_y = 120.0;
-        app.session.execute("effects.setParam", json!({
-            "clip": clip_id.0,
-            "effect": "motion",
-            "param": "position",
-            "value": [center_x, center_y + offset_y],
-            "time": t0.0,
-            "keyframe": true
-        })).map_err(|e| e.to_string())?;
-        app.session.execute("effects.setParam", json!({
-            "clip": clip_id.0,
-            "effect": "motion",
-            "param": "position",
-            "value": [center_x, center_y],
-            "time": t1.0,
-            "keyframe": true
-        })).map_err(|e| e.to_string())?;
-        app.session.execute("effects.setParam", json!({
-            "clip": clip_id.0,
-            "effect": "opacity",
-            "param": "opacity",
-            "value": 0.0,
-            "time": t0.0,
-            "keyframe": true
-        })).map_err(|e| e.to_string())?;
-        app.session.execute("effects.setParam", json!({
-            "clip": clip_id.0,
-            "effect": "opacity",
-            "param": "opacity",
-            "value": 100.0,
-            "time": t1.0,
-            "keyframe": true
-        })).map_err(|e| e.to_string())?;
+        app.session
+            .execute(
+                "effects.setParam",
+                json!({
+                    "clip": clip_id.0,
+                    "effect": "motion",
+                    "param": "position",
+                    "value": [center_x, center_y + offset_y],
+                    "time": t0.0,
+                    "keyframe": true
+                }),
+            )
+            .map_err(|e| e.to_string())?;
+        app.session
+            .execute(
+                "effects.setParam",
+                json!({
+                    "clip": clip_id.0,
+                    "effect": "motion",
+                    "param": "position",
+                    "value": [center_x, center_y],
+                    "time": t1.0,
+                    "keyframe": true
+                }),
+            )
+            .map_err(|e| e.to_string())?;
+        app.session
+            .execute(
+                "effects.setParam",
+                json!({
+                    "clip": clip_id.0,
+                    "effect": "opacity",
+                    "param": "opacity",
+                    "value": 0.0,
+                    "time": t0.0,
+                    "keyframe": true
+                }),
+            )
+            .map_err(|e| e.to_string())?;
+        app.session
+            .execute(
+                "effects.setParam",
+                json!({
+                    "clip": clip_id.0,
+                    "effect": "opacity",
+                    "param": "opacity",
+                    "value": 100.0,
+                    "time": t1.0,
+                    "keyframe": true
+                }),
+            )
+            .map_err(|e| e.to_string())?;
         Ok(tl!("Animated smooth ease-in slide with position & opacity.").into())
     }
 }
@@ -446,11 +515,7 @@ fn apply_ai_transition(app: &mut FilmcraftApp, prompt: &str) -> Result<String, S
         None
     };
 
-    let params = if let Some(cid) = clip_param {
-        json!({"clip": cid.0, "effect": eff, "frames": 24})
-    } else {
-        json!({"effect": eff, "frames": 24})
-    };
+    let params = if let Some(cid) = clip_param { json!({"clip": cid.0, "effect": eff, "frames": 24}) } else { json!({"effect": eff, "frames": 24}) };
 
     app.session.execute("sequence.applyVideoTransition", params).map_err(|e| e.to_string())?;
     Ok(tlf!("Applied \"{eff}\" transition (24 frames).", eff = eff))
@@ -496,16 +561,18 @@ fn apply_local_ai_edit(app: &mut FilmcraftApp, prompt: &str) -> Result<String, S
         return Ok(tl!("Ripple deleted selection and closed the gap.").into());
     }
 
-    if p_lower.contains("generate video")
-        || p_lower.contains("generate scene")
-        || p_lower.contains("create scene")
-        || p_lower.contains("footage")
-    {
+    if p_lower.contains("generate video") || p_lower.contains("generate scene") || p_lower.contains("create scene") || p_lower.contains("footage") {
         return Err(tl!("AI video generation requires the online server API. Switch to the Video tab or configure your API key in Settings.").into());
     }
 
     if p_lower.contains("title") || p_lower.contains("text") || p_lower.contains("caption") || p_lower.contains("lower third") {
-        let style = if p_lower.contains("lower third") { "lower_third" } else if p_lower.contains("caption") { "caption" } else { "title" };
+        let style = if p_lower.contains("lower third") {
+            "lower_third"
+        } else if p_lower.contains("caption") {
+            "caption"
+        } else {
+            "title"
+        };
         let clean = p_trim
             .trim_start_matches("add ")
             .trim_start_matches("create ")
@@ -547,9 +614,7 @@ fn apply_llm_edit_response(app: &mut FilmcraftApp, response: &str, prompt: &str)
                 app.session.execute("edit.clear", json!({"ripple": true})).map_err(|e| e.to_string())?;
                 Ok(tl!("Ripple deleted selection and closed the gap.").into())
             }
-            "generate_video" => {
-                Err(tl!("Video generation requested. Use the Video tab to generate with the online server API.").into())
-            }
+            "generate_video" => Err(tl!("Video generation requested. Use the Video tab to generate with the online server API.").into()),
             "add_title" => {
                 let style = val.get("style").and_then(Value::as_str).unwrap_or("title");
                 let text = val.get("text").and_then(Value::as_str).unwrap_or(prompt);
@@ -601,12 +666,10 @@ pub fn show(app: &mut FilmcraftApp, ctx: &egui::Context) -> bool {
                 Ok(msg) => d.say(msg, false),
                 Err(e) => d.say(e, true),
             },
-            (Want::Video(prompt, _), Ok(video_path)) => {
-                match place_imported_video(app, &video_path, &prompt) {
-                    Ok(msg) => d.say(msg, false),
-                    Err(e) => d.say(e, true),
-                }
-            }
+            (Want::Video(prompt, _), Ok(video_path)) => match place_imported_video(app, &video_path, &prompt) {
+                Ok(msg) => d.say(msg, false),
+                Err(e) => d.say(e, true),
+            },
             (Want::Performance, Ok(text)) => {
                 if let Some(rec) = ai::parse_perf_recommendation(&text) {
                     d.perf_rec = Some(rec);

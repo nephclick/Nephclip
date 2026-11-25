@@ -451,13 +451,18 @@ fn caption_presets_and_create_captions() {
         speakers: vec![],
         words: vec![
             filmcraft_project::transcript::Word::new("NephClip", audio_clip.source_in, audio_clip.source_in + Tick::from_seconds_f64(1.0)),
-            filmcraft_project::transcript::Word::new("Editor", audio_clip.source_in + Tick::from_seconds_f64(1.2), audio_clip.source_in + Tick::from_seconds_f64(2.0)),
+            filmcraft_project::transcript::Word::new(
+                "Editor",
+                audio_clip.source_in + Tick::from_seconds_f64(1.2),
+                audio_clip.source_in + Tick::from_seconds_f64(2.0),
+            ),
         ],
     };
     s.edit("Add test transcript", |pr, _| {
         pr.transcripts.insert(audio_clip.item, std::sync::Arc::new(tr));
         Ok(())
-    }).unwrap();
+    })
+    .unwrap();
     let r = s.execute("clip.createCaptions", json!({"clips": [audio_clip.id.0], "preset": "active_lime"}));
     assert!(r.is_ok(), "createCaptions should succeed: {r:?}");
     let q = s.active_sequence().unwrap();

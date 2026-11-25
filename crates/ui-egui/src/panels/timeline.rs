@@ -918,11 +918,7 @@ fn empty_state(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     let b_ai = Rect::from_min_size(pos2(start_x + btn_w + gap, y), vec2(btn_w, btn_h));
     let resp_ai = ui.interact(b_ai, egui::Id::unique("tl-create-with-ai"), Sense::click());
     app.auto.add("timeline.createWithAi", b_ai, "Create with AI");
-    let ai_bg = if resp_ai.hovered() {
-        Color32::from_rgb(130, 80, 230)
-    } else {
-        Color32::from_rgb(110, 60, 210)
-    };
+    let ai_bg = if resp_ai.hovered() { Color32::from_rgb(130, 80, 230) } else { Color32::from_rgb(110, 60, 210) };
     ui.painter().rect_filled(b_ai, 14.0, ai_bg);
     ui.painter().text(b_ai.center(), Align2::CENTER_CENTER, tl!("✨ Create with AI"), Tokens::semibold(12.0), Color32::WHITE);
     if resp_ai.clicked() {

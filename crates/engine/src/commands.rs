@@ -1842,28 +1842,20 @@ fn build() -> Vec<CommandSpec> {
             Label::Lavender,
             p
         )),
-        cmd!(
-            "file.importDemoFootage",
-            "Demo Footage",
-            [],
-            None,
-            r#"{"scene":"OceanSunset|Aurora|CityNight|Dunes|Plasma|Forest"}"#,
-            always,
-            |s, p| {
-                let scenes: Vec<filmcraft_media::DemoScene> = match str_p(p, "scene") {
-                    Some(n) => filmcraft_media::DemoScene::ALL.iter().copied().filter(|d| format!("{d:?}").eq_ignore_ascii_case(n)).collect(),
-                    None => filmcraft_media::DemoScene::ALL.to_vec(),
-                };
-                let pool = s.media.clone();
-                let ids = s.edit("Import Demo Footage", |pr, _| {
-                    Ok(scenes
-                        .iter()
-                        .map(|sc| crate::demo::add_generator(pr, &pool, GeneratorSource::demo(*sc), sc.file_name(), Label::Iris, None))
-                        .collect::<Vec<_>>())
-                })?;
-                Ok(json!({"items": ids.iter().map(|i| i.0).collect::<Vec<_>>()}))
-            }
-        ),
+        cmd!("file.importDemoFootage", "Demo Footage", [], None, r#"{"scene":"OceanSunset|Aurora|CityNight|Dunes|Plasma|Forest"}"#, always, |s, p| {
+            let scenes: Vec<filmcraft_media::DemoScene> = match str_p(p, "scene") {
+                Some(n) => filmcraft_media::DemoScene::ALL.iter().copied().filter(|d| format!("{d:?}").eq_ignore_ascii_case(n)).collect(),
+                None => filmcraft_media::DemoScene::ALL.to_vec(),
+            };
+            let pool = s.media.clone();
+            let ids = s.edit("Import Demo Footage", |pr, _| {
+                Ok(scenes
+                    .iter()
+                    .map(|sc| crate::demo::add_generator(pr, &pool, GeneratorSource::demo(*sc), sc.file_name(), Label::Iris, None))
+                    .collect::<Vec<_>>())
+            })?;
+            Ok(json!({"items": ids.iter().map(|i| i.0).collect::<Vec<_>>()}))
+        }),
         cmd!("file.import", "Import…", ["File"], Some("Cmd+I"), r#"{"paths":[str],"bin":binId?,"imageSequence":bool?,"replace":bool?}"#, always, |s, p| {
             let bin = u64_p(p, "bin").map(filmcraft_project::BinId);
             let paths: Vec<String> = match p.get("paths").and_then(Value::as_array) {
@@ -2231,10 +2223,7 @@ fn build() -> Vec<CommandSpec> {
                 // Magnetic Timeline: clips close up behind a removed one (`"ripple":false` opts out).
                 // Selection-based deletes ripple by default with magnetic timeline on; explicit clip targets ripple when requested or default-on.
                 let ripple_default = target.is_none();
-                if s.state.magnetic_timeline
-                    && bool_p(p, "ripple").unwrap_or(ripple_default)
-                    && (target.is_some() || !s.state.selection.is_empty())
-                {
+                if s.state.magnetic_timeline && bool_p(p, "ripple").unwrap_or(ripple_default) && (target.is_some() || !s.state.selection.is_empty()) {
                     match ripple_delete(s, p) {
                         Ok(v) => return Ok(v),
                         Err(EngineError::Edit(filmcraft_edit::EditError::SyncLockConflict(_))) => {}
@@ -2701,15 +2690,9 @@ fn build() -> Vec<CommandSpec> {
             crate::clip_ops::add_frame_hold(s, p)
         }),
         cmd!("clip.nest", "Nest…", ["Clip"], None, r#"{"name":str?}"#, has_selection, |s, p| nest(s, p)),
-        cmd!(
-            "clip.createCaptions",
-            "Create Captions from Audio",
-            ["Clip"],
-            None,
-            r#"{"clips":[id]?,"preset":str?}"#,
-            has_seq,
-            |s, p| create_clip_captions(s, p)
-        ),
+        cmd!("clip.createCaptions", "Create Captions from Audio", ["Clip"], None, r#"{"clips":[id]?,"preset":str?}"#, has_seq, |s, p| create_clip_captions(
+            s, p
+        )),
         // Reveal in Project (clip context menu) and Reveal Sequence in Project (Timeline tab menu):
         // select the item in the Project panel and show it there
         cmd!("clip.revealInProject", "Reveal in Project", [], None, r#"{"clip":id?}"#, has_seq, |s, p| {
@@ -4915,13 +4898,16 @@ fn create_clip_captions(s: &mut Session, p: &Value) -> Result<Value> {
         }
     }
 
-    let cap_res = s.execute("transcript.createCaptions", json!({
-        "maxChars": 24,
-        "lines": 1,
-        "minSeconds": 0.8,
-        "maxSeconds": 2.5,
-        "gapFrames": 1
-    }));
+    let cap_res = s.execute(
+        "transcript.createCaptions",
+        json!({
+            "maxChars": 24,
+            "lines": 1,
+            "minSeconds": 0.8,
+            "maxSeconds": 2.5,
+            "gapFrames": 1
+        }),
+    );
 
     let preset_name = str_p(p, "preset").unwrap_or("viral_yellow");
     let _ = s.execute("captions.applyPreset", json!({"preset": preset_name}));
@@ -5153,10 +5139,8 @@ fn close_gap(s: &mut Session, tr: TrackId, t: Tick) -> Result<()> {
         let before: Vec<(ClipId, Tick)> = q.track(tr).map(|x| x.items.iter().map(|i| (i.id, i.start)).collect()).unwrap_or_default();
         edit::close_gap(q, tr, t)?;
         // the gap ended where the first clip that moved started
-        let moved = before
-            .iter()
-            .filter_map(|(id, old)| q.find_item(*id).filter(|(_, i)| i.start != *old).map(|(_, i)| (*old, *old - i.start)))
-            .min_by_key(|m| m.0);
+        let moved =
+            before.iter().filter_map(|(id, old)| q.find_item(*id).filter(|(_, i)| i.start != *old).map(|(_, i)| (*old, *old - i.start))).min_by_key(|m| m.0);
         if let Some((end, len)) = moved {
             if st.ripple_sequence_markers {
                 crate::sequence_tools::ripple_markers(&mut q.markers, end, -len);

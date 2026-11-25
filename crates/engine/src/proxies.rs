@@ -656,11 +656,7 @@ pub fn auto_proxy_high_res(s: &mut Session, items: &[ItemId]) -> Result<Value> {
         .filter_map(|&i| {
             let (clip, _, _) = media_path(&s.project, i)?;
             let v = clip.info.video.as_ref()?;
-            if clip.info.kind == MediaKind::Movie && clip.proxy.is_none() && (v.width > 1920 || v.height > 1080) {
-                Some(i.0)
-            } else {
-                None
-            }
+            if clip.info.kind == MediaKind::Movie && clip.proxy.is_none() && (v.width > 1920 || v.height > 1080) { Some(i.0) } else { None }
         })
         .collect();
     if high_res.is_empty() {

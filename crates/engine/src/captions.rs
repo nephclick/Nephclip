@@ -364,7 +364,9 @@ pub fn commands() -> Vec<CommandSpec> {
             r#"{"track":id|"C1"?, "preset":str}"#,
             has_caption_track,
             |s, p| {
-                let tid = track_param(s, p).or_else(|| s.active_sequence().and_then(|q| q.caption_tracks.first().map(|t| t.id))).ok_or_else(|| bad("captions.applyPreset", "no caption track"))?;
+                let tid = track_param(s, p)
+                    .or_else(|| s.active_sequence().and_then(|q| q.caption_tracks.first().map(|t| t.id)))
+                    .ok_or_else(|| bad("captions.applyPreset", "no caption track"))?;
                 let preset_str = str_p(p, "preset").unwrap_or("viral_yellow");
                 let preset = CaptionPreset::from_id(preset_str).ok_or_else(|| bad("captions.applyPreset", format!("unknown preset `{preset_str}`")))?;
                 s.edit("Apply Caption Style Preset", |pr, st| {

@@ -28,13 +28,8 @@ impl AiJob {
 }
 
 /// The providers, as stored in `ai.provider`, with their display names.
-pub const PROVIDERS: [(&str, &str); 5] = [
-    ("google", "Google Gemini"),
-    ("openai", "OpenAI"),
-    ("claude", "Claude"),
-    ("openrouter", "OpenRouter"),
-    ("custom", "Custom Server API"),
-];
+pub const PROVIDERS: [(&str, &str); 5] =
+    [("google", "Google Gemini"), ("openai", "OpenAI"), ("claude", "Claude"), ("openrouter", "OpenRouter"), ("custom", "Custom Server API")];
 
 pub fn provider_label(id: &str) -> &'static str {
     PROVIDERS.iter().find(|(k, _)| *k == id).map_or("Google Gemini", |(_, l)| l)
@@ -60,7 +55,13 @@ pub fn key_of<'a>(prefs: &'a AiPrefs, provider: &str) -> &'a str {
         "claude" => &prefs.claude_key,
         "openrouter" => &prefs.openrouter_key,
         "openai" => &prefs.openai_key,
-        "custom" => if !prefs.server_key.is_empty() { &prefs.server_key } else { &prefs.server_url },
+        "custom" => {
+            if !prefs.server_key.is_empty() {
+                &prefs.server_key
+            } else {
+                &prefs.server_url
+            }
+        }
         _ => &prefs.google_key,
     }
 }
@@ -178,11 +179,7 @@ fn http_parts(req: &Request) -> (String, Vec<String>, serde_json::Value) {
             }),
         ),
         "custom" => {
-            let url = if req.server_url.is_empty() {
-                "http://localhost:8080/v1/chat/completions".to_string()
-            } else {
-                req.server_url.clone()
-            };
+            let url = if req.server_url.is_empty() { "http://localhost:8080/v1/chat/completions".to_string() } else { req.server_url.clone() };
             (
                 url,
                 if req.key.is_empty() { vec![] } else { vec![format!("Authorization: Bearer {}", req.key)] },
@@ -423,21 +420,16 @@ fn call_online_video_api(provider: &str, key: &str, server_url: &str, prompt: &s
         let err = String::from_utf8_lossy(&out.stderr);
         return Err(format!("Network error: {}", err.trim()));
     }
-    let resp: serde_json::Value = serde_json::from_slice(&out.stdout)
-        .map_err(|_| "The video server sent an invalid response.".to_string())?;
+    let resp: serde_json::Value = serde_json::from_slice(&out.stdout).map_err(|_| "The video server sent an invalid response.".to_string())?;
     if let Some(err) = resp.pointer("/error/message").and_then(serde_json::Value::as_str) {
         return Err(format!("Video API Error: {err}"));
     }
     let video_url = resp.pointer("/data/0/url").or_else(|| resp.get("url")).and_then(serde_json::Value::as_str);
     if let Some(v_url) = video_url {
-        let dest = std::env::temp_dir().join(format!(
-            "ai_video_{}.mp4",
-            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis()).unwrap_or(0)
-        ));
+        let dest = std::env::temp_dir()
+            .join(format!("ai_video_{}.mp4", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis()).unwrap_or(0)));
         let dest_str = dest.to_string_lossy().to_string();
-        let dl = std::process::Command::new("curl")
-            .args(["-s", "-o", &dest_str, v_url])
-            .status();
+        let dl = std::process::Command::new("curl").args(["-s", "-o", &dest_str, v_url]).status();
         if dl.map(|s| s.success()).unwrap_or(false) && dest.exists() {
             return Ok(dest_str);
         }

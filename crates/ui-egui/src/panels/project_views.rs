@@ -303,10 +303,8 @@ pub(super) fn item_interactions(app: &mut FilmcraftApp, ui: &egui::Ui, actions: 
             let cut_frame = rate.frame_at(Tick(h.time));
             if total_frames > 2 && cut_frame > 0 && cut_frame < total_frames {
                 let base_name = it.name.clone();
-                actions.push((
-                    "clip.makeSubclip".into(),
-                    json!({"item": id.0, "startFrame": 0, "endFrame": cut_frame, "name": format!("{base_name} (Cut 1)")}),
-                ));
+                actions
+                    .push(("clip.makeSubclip".into(), json!({"item": id.0, "startFrame": 0, "endFrame": cut_frame, "name": format!("{base_name} (Cut 1)")})));
                 actions.push((
                     "clip.makeSubclip".into(),
                     json!({"item": id.0, "startFrame": cut_frame, "endFrame": total_frames, "name": format!("{base_name} (Cut 2)")}),
