@@ -1,0 +1,8 @@
+asset:        nephclip-macos-512.png
+title:        NephClip app icon (film strip with pencil)
+author:       nephtali (NephClip owner)
+source:       original work supplied by the owner
+license:      MIT OR Apache-2.0
+license-file: assets/app-icon/LICENSE.txt
+added:        2026-11-16 by nephtali
+notes:        Owner-supplied artwork scaled into the Apple icon grid (824 of 1024 px, transparent margin); the .icns was built with iconutil.
