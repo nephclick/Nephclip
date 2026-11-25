@@ -31,7 +31,7 @@ use objc2_core_media::{
 use objc2_core_video::{
     CVImageBuffer, CVPixelBufferGetBaseAddressOfPlane, CVPixelBufferGetBytesPerRowOfPlane, CVPixelBufferGetHeight, CVPixelBufferGetHeightOfPlane,
     CVPixelBufferGetPixelFormatType, CVPixelBufferGetPlaneCount, CVPixelBufferGetWidth, CVPixelBufferGetWidthOfPlane, CVPixelBufferLockBaseAddress,
-    CVPixelBufferLockFlags, CVPixelBufferUnlockBaseAddress, kCVPixelBufferPixelFormatTypeKey,
+    CVPixelBufferLockFlags, CVPixelBufferUnlockBaseAddress, kCVPixelBufferMetalCompatibilityKey, kCVPixelBufferPixelFormatTypeKey,
 };
 use objc2_video_toolbox::{
     VTDecodeFrameFlags, VTDecodeInfoFlags, VTDecompressionOutputCallbackRecord, VTDecompressionSession,
@@ -227,28 +227,64 @@ fn copy_out(pb: &CVImageBuffer, l: &Layout) -> std::result::Result<VideoFrame, S
     }
     let data = if bps == 1 {
         let mut yp = pool::take_u8(w * h);
-        for y in 0..h {
-            yp.extend_from_slice(ys.row(oy + y, ox * bps, w * bps)?);
+        if ox == 0 && ys.stride == w {
+            let start = oy * ys.stride;
+            if let Some(src) = ys.data.get(start..start + w * h) {
+                yp.extend_from_slice(src);
+            } else {
+                return Err("luma plane out of range".into());
+            }
+        } else {
+            for y in 0..h {
+                yp.extend_from_slice(ys.row(oy + y, ox, w)?);
+            }
         }
-        let (mut u, mut v) = (pool::take_u8(cw * ch), pool::take_u8(cw * ch));
+        let chroma_len = cw * ch;
+        let mut u = pool::take_u8(chroma_len);
+        let mut v = pool::take_u8(chroma_len);
+        u.resize(chroma_len, 0);
+        v.resize(chroma_len, 0);
         for y in 0..ch {
-            for pair in cs.row(coy + y, cox * 2 * bps, cw * 2 * bps)?.as_chunks::<2>().0 {
-                u.push(pair[0]);
-                v.push(pair[1]);
+            let row = cs.row(coy + y, cox * 2, cw * 2)?;
+            let dst_off = y * cw;
+            let (Some(u_row), Some(v_row)) = (u.get_mut(dst_off..dst_off + cw), v.get_mut(dst_off..dst_off + cw)) else {
+                return Err("chroma destination out of range".into());
+            };
+            for ((pair, du), dv) in row.as_chunks::<2>().0.iter().zip(u_row.iter_mut()).zip(v_row.iter_mut()) {
+                *du = pair[0];
+                *dv = pair[1];
             }
         }
         PixelData::Yuv8 { planes: [Arc::new(yp), Arc::new(u), Arc::new(v)], chroma: l.chroma, alpha: None }
     } else {
         let shift = 16 - l.bits;
-        let mut yp = pool::take_u16(w * h);
+        let luma_len = w * h;
+        let mut yp = pool::take_u16(luma_len);
+        yp.resize(luma_len, 0);
         for y in 0..h {
-            yp.extend(ys.row(oy + y, ox * bps, w * bps)?.as_chunks::<2>().0.iter().map(|b| u16::from_ne_bytes([b[0], b[1]]) >> shift));
+            let row = ys.row(oy + y, ox * 2, w * 2)?;
+            let dst_off = y * w;
+            let Some(y_row) = yp.get_mut(dst_off..dst_off + w) else {
+                return Err("luma 16-bit destination out of range".into());
+            };
+            for (b, dy) in row.as_chunks::<2>().0.iter().zip(y_row.iter_mut()) {
+                *dy = u16::from_ne_bytes([b[0], b[1]]) >> shift;
+            }
         }
-        let (mut u, mut v) = (pool::take_u16(cw * ch), pool::take_u16(cw * ch));
+        let chroma_len = cw * ch;
+        let mut u = pool::take_u16(chroma_len);
+        let mut v = pool::take_u16(chroma_len);
+        u.resize(chroma_len, 0);
+        v.resize(chroma_len, 0);
         for y in 0..ch {
-            for q in cs.row(coy + y, cox * 2 * bps, cw * 2 * bps)?.as_chunks::<4>().0 {
-                u.push(u16::from_ne_bytes([q[0], q[1]]) >> shift);
-                v.push(u16::from_ne_bytes([q[2], q[3]]) >> shift);
+            let row = cs.row(coy + y, cox * 4, cw * 4)?;
+            let dst_off = y * cw;
+            let (Some(u_row), Some(v_row)) = (u.get_mut(dst_off..dst_off + cw), v.get_mut(dst_off..dst_off + cw)) else {
+                return Err("chroma 16-bit destination out of range".into());
+            };
+            for ((q, du), dv) in row.as_chunks::<4>().0.iter().zip(u_row.iter_mut()).zip(v_row.iter_mut()) {
+                *du = u16::from_ne_bytes([q[0], q[1]]) >> shift;
+                *dv = u16::from_ne_bytes([q[2], q[3]]) >> shift;
             }
         }
         PixelData::Yuv16 { planes: [Arc::new(yp), Arc::new(u), Arc::new(v)], chroma: l.chroma, bits: l.bits, alpha: None }
@@ -292,9 +328,9 @@ impl Session {
         let key: &CFString = unsafe { kVTVideoDecoderSpecification_RequireHardwareAcceleratedVideoDecoder };
         let spec = CFDictionary::<CFString, CFType>::from_slices(&[key], &[CFBoolean::new(true).as_ref()]);
         let pf = CFNumber::new_i32(layout.pixel_format as i32);
-        // SAFETY: reading an immutable framework constant.
-        let pf_key: &CFString = unsafe { kCVPixelBufferPixelFormatTypeKey };
-        let attrs = CFDictionary::<CFString, CFType>::from_slices(&[pf_key], &[pf.as_ref()]);
+        // SAFETY: reading immutable CoreVideo framework constants.
+        let (pf_key, metal_key): (&CFString, &CFString) = unsafe { (kCVPixelBufferPixelFormatTypeKey, kCVPixelBufferMetalCompatibilityKey) };
+        let attrs = CFDictionary::<CFString, CFType>::from_slices(&[pf_key, metal_key], &[pf.as_ref(), CFBoolean::new(true).as_ref()]);
         let shared = Box::new(Shared { layout, out: Mutex::new(Vec::new()) });
         let record = VTDecompressionOutputCallbackRecord {
             decompressionOutputCallback: Some(output_callback),
@@ -338,9 +374,9 @@ impl Session {
     }
 }
 
-/// Access units decoding at once (asynchronous decompression overlaps decoding a picture with
-/// copying out the previous one).
-const MAX_IN_FLIGHT: usize = 2;
+/// Access units decoding at once (asynchronous decompression overlaps Apple Silicon Media Engine
+/// decoding with frame extraction for smooth 4K 60fps playback).
+const MAX_IN_FLIGHT: usize = 4;
 
 /// A `CMVideoFormatDescription` from the record's parameter sets.
 fn format_description(info: &NalStreamInfo) -> std::result::Result<CFRetained<CMFormatDescription>, String> {

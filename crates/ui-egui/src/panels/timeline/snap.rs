@@ -17,7 +17,12 @@ pub(super) fn snap_playhead(app: &mut FilmcraftApp, seq: &Sequence, layout: &Lay
 fn snap_to(app: &mut FilmcraftApp, seq: &Sequence, layout: &Layout, t: Tick, exclude: &[ClipId], to_playhead: bool) -> Tick {
     match targets(app, seq, layout, t, exclude, to_playhead).first() {
         Some(&(_, c)) => {
-            app.tl.snap_x = Some(layout.x_of(c));
+            let new_x = layout.x_of(c);
+            let changed = app.tl.snap_x.is_none_or(|prev| (prev - new_x).abs() > 0.5);
+            app.tl.snap_x = Some(new_x);
+            if changed && let Some(haptic) = &app.hooks.haptic_snap {
+                haptic();
+            }
             c
         }
         None => t,

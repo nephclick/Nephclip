@@ -2630,6 +2630,7 @@ dependencies = [
  "filmcraft-time",
  "libloading",
  "log",
+ "objc2-app-kit 0.3.2",
  "objc2-core-foundation",
  "objc2-core-media",
  "objc2-core-video",

@@ -38,6 +38,9 @@ pub mod cursor;
 #[cfg(target_os = "macos")]
 pub mod hardware_encode;
 pub mod hybrid;
+#[cfg(target_os = "macos")]
+#[allow(unsafe_code)]
+pub mod macos_appkit;
 #[cfg(target_os = "windows")]
 pub mod media_foundation;
 #[cfg(all(target_os = "linux", target_pointer_width = "64"))]

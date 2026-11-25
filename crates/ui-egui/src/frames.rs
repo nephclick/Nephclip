@@ -352,8 +352,8 @@ struct PlanCache {
 }
 
 impl PlanCache {
-    const MAX: usize = 96;
-    const BUDGET: usize = 1 << 30;
+    const MAX: usize = 240;
+    const BUDGET: usize = 2 << 30;
 
     fn get(&mut self, k: &FrameKey) -> Option<Arc<GpuPlan>> {
         self.clock += 1;
